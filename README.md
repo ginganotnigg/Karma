@@ -1,10 +1,10 @@
-# Kayn
+# Karma
 
-# API Subservice - TTS & STT Conversion
+> Let's think of **Text to Speech** like **Kar(m)a**oke.
+
+# API Subservice - TTS Conversion
 
 ## Introduction
 
-It's a sub API for SkillSharp, which use in Scenario and Interview features.
-It literally has 2 APIs like Kayn forms:
-- **Shadow Assassin**: Text-to-Speech API
-- **Darkin**: Speech-to-Text API
+It's a sub API for SkillSharp, which use in Scenario and Interview features. It used 
+**pyttsx3** to convert text to sound.

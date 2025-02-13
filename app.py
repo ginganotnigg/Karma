@@ -1,9 +1,7 @@
-import os
-import tempfile
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-from tts_shadow import speak
-from stt_darkin import live_recognition
+from tts import speak
+from stt import live_recognition
 
 app = Flask(__name__)
 CORS(app)
@@ -40,27 +38,6 @@ def tts_api():
     except Exception as e:
         return jsonify({"Error": str(e)}), 500
     return jsonify({"Message": "TTS triggered successfully!"})
-
-@app.route("/api/stt", methods=["POST"])
-def stt_api():
-    """
-    STT API route.
-    This endpoint is triggered by a POST request when the user clicks the "Answer" button.
-    No audio file is provided; instead, the function captures live speech directly from the server's microphone.
-    
-    It listens and stops recording automatically once there is more than 3 seconds of silence after speech.
-    The transcription is then returned as JSON.
-    
-    Optional form field:
-      - "language": defaults to "en-US"
-    """
-    language = request.form.get("language", "en-US")
-
-    try:
-        transcription = live_recognition(language)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    return jsonify({"Transcription": transcription})
 
 if __name__ == "__main__":
     app.run(debug=True)

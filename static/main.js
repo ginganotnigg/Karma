@@ -81,31 +81,4 @@ document.addEventListener("DOMContentLoaded", function () {
                 document.getElementById("tts-result").innerText = "Error: " + error;
             });
     });
-
-    document.getElementById("stt-button").addEventListener("click", () => {
-        const lang = document.getElementById("stt-lang").value;
-        const formData = new FormData();
-        formData.append("language", lang);
-
-        document.getElementById("stt-loading").style.display = "block";
-        document.getElementById("stt-result").innerText = "";
-
-        fetch("/api/stt", {
-            method: "POST",
-            body: formData
-        })
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById("stt-loading").style.display = "none";
-                if (data.error) {
-                    document.getElementById("stt-result").innerText = "Error: " + data.error;
-                } else {
-                    document.getElementById("stt-result").innerText = "Transcription: " + data.Transcription;
-                }
-            })
-            .catch(error => {
-                document.getElementById("stt-loading").style.display = "none";
-                document.getElementById("stt-result").innerText = "Error: " + error;
-            });
-    });
 });
