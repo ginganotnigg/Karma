@@ -1,0 +1,8 @@
+version: "1.0"
+services:
+  kayn:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${0.0.0.0:-5000}:5000"

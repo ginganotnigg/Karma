@@ -1,0 +1,58 @@
+name: create tag
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  create-or-update-tag:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+
+    - name: Set up Git
+      run: |
+        git config --global user.name "${{ github.actor }}"
+        git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+
+
+    - name: Get latest tag
+      id: get_tag
+      run: |
+        TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+        echo "Latest tag: $TAG"
+        echo "::set-output name=tag::$TAG"
+
+    - name: Increment tag or create new tag
+      id: increment_tag
+      run: |
+        TAG="${{ steps.get_tag.outputs.tag }}"
+        if [ "$TAG" == "v0.0.0" ]; then
+          echo "No tag found, creating initial tag v1.0.0"
+          NEW_TAG="v1.0.0"
+        else
+          # Split the tag into parts (e.g., v1.0.0 -> 1, 0, 0)
+          TAG_WITHOUT_V="${TAG#v}"  # Loại bỏ ký tự 'v' ở đầu tag
+          major=$(echo "$TAG_WITHOUT_V" | cut -d '.' -f1)
+          minor=$(echo "$TAG_WITHOUT_V" | cut -d '.' -f2)
+          patch=$(echo "$TAG_WITHOUT_V" | cut -d '.' -f3)
+
+          # Increment the patch version
+          PATCH=$((patch + 1))
+          
+          # Create new tag based on current tag
+          NEW_TAG="v$major.$minor.$PATCH"
+          echo "Incremented tag to $NEW_TAG"
+        fi
+        echo "::set-output name=new_tag::$NEW_TAG"
+
+    - name: Create and push new tag
+      run: |
+        NEW_TAG="${{ steps.increment_tag.outputs.new_tag }}"
+        git tag "$NEW_TAG"
+        git push https://${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/${{ github.repository }}.git --tags
