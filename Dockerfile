@@ -5,7 +5,7 @@ WORKDIR /app
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-RUN pip install --no-cache-dir Flask Flask-Cors gunicorn
+RUN pip install --no-cache-dir flask flask_cors gunicorn
 
 COPY . .
 

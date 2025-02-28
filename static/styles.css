@@ -59,6 +59,32 @@ img.selected {
     margin: auto;
 }
 
+.button-group {
+    display: flex;
+    gap: 10px;
+    margin: 15px 0;
+}
+
+.button-group button {
+    flex: 1;
+    min-width: 120px;
+}
+
+button:hover {
+    background-color: #006666;
+}
+
+#tts-result {
+    margin-top: 15px;
+    padding: 10px;
+    border-radius: 4px;
+}
+
+#tts-result:not(:empty) {
+    background-color: #e8f5e9;
+    border: 1px solid #c8e6c9;
+}
+
 /* Add keyframes for the spinner animation */
 @keyframes spin {
     0% {

@@ -16,19 +16,10 @@ document.addEventListener("DOMContentLoaded", function () {
         const container = document.getElementById("reader-selection");
         container.innerHTML = "";
 
-        let images = [];
-        if (lang === "vi_VN") {
-            images = [
-                { index: 0, src: "/static/assets/id-0.png", alt: "Reader 0" }
-            ];
-        } else {
-            images = [
-                { index: 0, src: "/static/assets/id-0.png", alt: "Reader 0" },
-                { index: 1, src: "/static/assets/id-1.png", alt: "Reader 1" },
-                { index: 2, src: "/static/assets/id-2.png", alt: "Reader 2" },
-                { index: 3, src: "/static/assets/id-3.png", alt: "Reader 3" }
-            ];
-        }
+        let images = [
+            { index: 0, src: "/static/assets/id-0.png", alt: "Female" },
+            { index: 1, src: "/static/assets/id-3.png", alt: "Male" }
+        ];
 
         images.forEach(imgData => {
             const img = document.createElement("img");
@@ -68,17 +59,25 @@ document.addEventListener("DOMContentLoaded", function () {
             body: JSON.stringify({
                 "content": text,
                 "lang": lang,
-                "reader": readerIndex
+                "gender": (readerIndex == 0) ? "female" : "male"
             })
         })
             .then(response => response.json())
             .then(data => {
-                document.getElementById("tts-loading").style.display = "none";
-                document.getElementById("tts-result").innerText = data.Message || "TTS triggered successfully!";
+                document.getElementById("tts-result").innerText =
+                    `Audio saved successfully! Filename: ${data.filename}`;
+
+                // Create a temporary link to download the file
+                const link = document.createElement('a');
+                link.href = `/audio/${data.filename}`;
+                link.download = data.filename;
+                link.click();
             })
             .catch(error => {
+                document.getElementById("tts-result").innerText = "Error: " + error.message;
+            })
+            .finally(() => {
                 document.getElementById("tts-loading").style.display = "none";
-                document.getElementById("tts-result").innerText = "Error: " + error;
             });
     });
 });
