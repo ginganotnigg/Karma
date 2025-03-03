@@ -42,8 +42,7 @@ img.selected {
     border: 2px solid darkcyan;
 }
 
-#stt-loading,
-#tts-loading {
+#loading {
     display: none;
     text-align: center;
     margin-top: 20px;
@@ -74,13 +73,13 @@ button:hover {
     background-color: #006666;
 }
 
-#tts-result {
+#result {
     margin-top: 15px;
     padding: 10px;
     border-radius: 4px;
 }
 
-#tts-result:not(:empty) {
+#result:not(:empty) {
     background-color: #e8f5e9;
     border: 1px solid #c8e6c9;
 }

@@ -48,15 +48,15 @@ async def save_audio(text, filename, lang="en", gender="male"):
 if __name__ == "__main__":
     async def main():
         print("\nTesting English Male TTS...")
-        await save_audio("Hello! This is a test.", "test_en_male.mp3", lang="en", gender="male")
+        await save_audio("Hello! This is a test.", "test_en_male.wav", lang="en", gender="male")
 
         print("\nTesting English Female TTS...")
-        await save_audio("Hello! This is a test.", "test_en_female.mp3", lang="en", gender="female")
+        await save_audio("Hello! This is a test.", "test_en_female.wav", lang="en", gender="female")
 
         print("\nTesting Vietnamese Male TTS...")
-        await save_audio("Xin chào! Đây là bài kiểm tra.", "test_vi_male.mp3", lang="vi", gender="male")
+        await save_audio("Xin chào! Đây là bài kiểm tra.", "test_vi_male.wav", lang="vi", gender="male")
 
         print("\nTesting Vietnamese Female TTS...")
-        await save_audio("Xin chào! Đây là bài kiểm tra.", "test_vi_female.mp3", lang="vi", gender="female")
+        await save_audio("Xin chào! Đây là bài kiểm tra.", "test_vi_female.wav", lang="vi", gender="female")
 
     asyncio.run(main())

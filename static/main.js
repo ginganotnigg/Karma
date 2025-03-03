@@ -44,12 +44,12 @@ document.addEventListener("DOMContentLoaded", function () {
         const lang = document.getElementById("tts-lang").value;
         const readerIndex = document.getElementById("tts-reader-id").value;
 
-        document.getElementById("tts-loading").style.display = "block";
-        document.getElementById("tts-result").innerText = "";
+        document.getElementById("loading").style.display = "block";
+        document.getElementById("result").innerText = "";
 
         if (!text) {
             alert("Please enter text to speak.");
-            document.getElementById("tts-loading").style.display = "none";
+            document.getElementById("loading").style.display = "none";
             return;
         }
 
@@ -58,26 +58,87 @@ document.addEventListener("DOMContentLoaded", function () {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 "content": text,
-                "lang": lang,
+                "language": lang,
                 "gender": (readerIndex == 0) ? "female" : "male"
             })
         })
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById("tts-result").innerText =
-                    `Audio saved successfully! Filename: ${data.filename}`;
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(errorData => {
+                        throw new Error(errorData.Error || "An error occurred.");
+                    });
+                }
+                return response.blob(); // Get the response as a blob (binary data)
+            })
+            .then(blob => {
+                // Create a temporary URL for the blob
+                const url = window.URL.createObjectURL(blob);
 
                 // Create a temporary link to download the file
                 const link = document.createElement('a');
-                link.href = `/audio/${data.filename}`;
-                link.download = data.filename;
+                link.href = url;
+                const filename = `tts_audio_${Date.now()}.mp3`;
+                link.download = filename;
                 link.click();
+
+                // Release the object URL
+                window.URL.revokeObjectURL(url);
+
+                document.getElementById("result").innerText = "Audio downloaded successfully!";
+
             })
             .catch(error => {
-                document.getElementById("tts-result").innerText = "Error: " + error.message;
+                document.getElementById("result").innerText = "Error: " + error.message;
             })
             .finally(() => {
-                document.getElementById("tts-loading").style.display = "none";
+                document.getElementById("loading").style.display = "none";
+            });
+    });
+
+    // Lip Sync functionality
+    document.getElementById("lip-sync-button").addEventListener("click", () => {
+        const text = document.getElementById("tts-text").value.trim();
+        const lang = document.getElementById("tts-lang").value;
+        const readerIndex = document.getElementById("tts-reader-id").value;
+
+        document.getElementById("loading").style.display = "block";
+        document.getElementById("result").innerText = "";
+
+        if (!text) {
+            alert("Please enter text to speak.");
+            document.getElementById("loading").style.display = "none";
+            return;
+        }
+
+        fetch("/api/lip-sync", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                "content": text,
+                "language": lang,
+                "gender": (readerIndex == 0) ? "female" : "male"
+            })
+        })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(errorData => {
+                        throw new Error(errorData.error || "An error occurred.");
+                    });
+                }
+                return response.json(); // Get the response as JSON
+            })
+            .then(data => {
+                if (data.json_result) {
+                    document.getElementById("result").innerText = JSON.stringify(data.json_result, null, 2);
+                } else {
+                    document.getElementById("result").innerText = "Failed to generate lip sync.";
+                }
+            })
+            .catch(error => {
+                document.getElementById("result").innerText = "Error: " + error.message;
+            })
+            .finally(() => {
+                document.getElementById("loading").style.display = "none";
             });
     });
 });

@@ -1,5 +1,4 @@
 edge-tts
 asyncio
 numpy
-flask
-flask-cors
+pydub

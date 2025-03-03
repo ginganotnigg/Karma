@@ -7,4 +7,4 @@
 ## Introduction
 
 It's a sub API for SkillSharp, which use in Scenario and Interview features. It used 
-**pyttsx3** to convert text to sound.
+**Edge TTS** to convert text to sound.
