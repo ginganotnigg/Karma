@@ -31,10 +31,15 @@ def tts_api():
     text = data["content"]
     gender = data.get("gender", "male").lower()
     lang = data.get("language", "en").lower()
+    speed = data.get("speed", 0)
 
     if gender not in ["male", "female"]:
         return jsonify({"Error": "Invalid gender value. Use 'male' or 'female'."}), 400
-
+    if lang not in ["male", "female"]:
+        return jsonify({"Error": "Invalid language value. Use 'en' or 'vi'."}), 400
+    if speed > 20 or speed < -20:
+        return jsonify({"Error": "Invalid speed value."}), 400
+    
     filename = f"output_{int(time.time())}.mp3"
 
     try:
@@ -46,6 +51,8 @@ def tts_api():
                 except Exception as e:
                     print(f"Failed to delete {audio_path}. Reason: {e}")
         output_path = asyncio.run(save_audio(text, filename, lang, gender))
+        if output_path is None:
+            return jsonify({"Error": "Failed to generate audio."}), 500
         return send_file(output_path, as_attachment=True, download_name=filename)
     except Exception as e:
         return jsonify({"Error": str(e)}), 500
@@ -71,11 +78,7 @@ def lip_sync():
         if lipsync_data is None:
             return jsonify({"error": "Failed to generate lip sync data"}), 500
         
-        return jsonify({
-            "message": "Lip sync generated successfully",
-            "json_result": lipsync_data
-        }), 200
-
+        return jsonify(lipsync_data), 200
     except Exception as e:
         print(f"Unexpected error: {str(e)}")
         return jsonify({"error": str(e)}), 500
