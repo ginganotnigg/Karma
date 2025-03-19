@@ -106,7 +106,7 @@ def convert_mp3_to_wav(mp3_path):
         "-i",
         mp3_path,
         "-filter:a",
-        f"atempo={SPEEDUP_FACTOR}", #speed up the audio
+        f"atempo={SPEEDUP_FACTOR}",
         "-ac",
         "1",
         "-ar",
@@ -147,19 +147,18 @@ def run_rhubarb_lip_sync(wav_path, lang):
         return None
 
 
-def sync_save_audio(text, audio_filename, lang="en", gender="male"):
+def sync_save_audio(text, audio_filename, lang="en", gender="male", speed=0):
     """Synchronous wrapper for save_audio function"""
     loop = asyncio.new_event_loop()
     try:
-        return loop.run_until_complete(save_audio(text, audio_filename, lang, gender))
+        return loop.run_until_complete(save_audio(text, audio_filename, lang, gender, speed))
     finally:
         loop.close()
 
 
-def text_to_mouthshape_json(text, audio_filename, lang="en", gender="male"): 
+def text_to_mouthshape_json(text, audio_filename, lang="en", gender="male", speed=0): 
     """Converts text to a Rhubarb Lip Sync JSON file."""
-    # Use the synchronous wrapper instead of asyncio.run()
-    mp3_path = sync_save_audio(text, audio_filename, lang, gender)
+    mp3_path = sync_save_audio(text, audio_filename, lang, gender, speed)
     if mp3_path is None:
         print("Failed to generate audio file.")
         return None
@@ -189,7 +188,6 @@ def text_to_mouthshape_json(text, audio_filename, lang="en", gender="male"):
         return load_template_json(audio_duration)
     
 
-# Example usage
 if __name__ == "__main__":
     text = "WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead."
     audio_filename = "output.mp3"

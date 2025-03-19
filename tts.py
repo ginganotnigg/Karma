@@ -24,14 +24,12 @@ def get_voice(lang, gender):
         return np.random.choice(ENGLISH_VOICES[gender])
     return VIETNAMESE_VOICES[gender]
 
-async def generate_edge_tts(text, filename, voice, speed=0):
+async def generate_edge_tts(text, filename, voice, speed_str):
     """
     Generates speech using Edge-TTS and saves it as a file.
     """
     os.makedirs(AUDIO_OUTPUT_DIR, exist_ok=True)
     output_path = os.path.join(AUDIO_OUTPUT_DIR, filename)
-    sign = "-" if speed < 0 else "+"
-    speed_str = f"{sign}{speed}%"
     try:
         tts = edge_tts.Communicate(text, voice=voice, rate=speed_str) 
         await tts.save(output_path)
@@ -40,12 +38,14 @@ async def generate_edge_tts(text, filename, voice, speed=0):
         print(f"Error generating Edge-TTS audio: {e}")
         return None
 
-async def save_audio(text, filename, lang="en", gender="male"):
+async def save_audio(text, filename, lang="en", gender="male", speed=0):
     """
     Saves the synthesized audio, selecting the appropriate voice.
     """
     voice = get_voice(lang, gender)
-    return await generate_edge_tts(text, filename, voice)
+    sign = "+" if speed >= 0 else ""
+    speed_str = f"{sign}{speed}%"
+    return await generate_edge_tts(text, filename, voice, speed_str)
 
 if __name__ == "__main__":
     async def main():

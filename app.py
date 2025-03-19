@@ -31,12 +31,13 @@ def tts_api():
     text = data["content"]
     gender = data.get("gender", "male").lower()
     lang = data.get("language", "en").lower()
-    speed = data.get("speed", 0)
+    speed = data.get("speed", "0")
 
     if gender not in ["male", "female"]:
         return jsonify({"Error": "Invalid gender value. Use 'male' or 'female'."}), 400
-    if lang not in ["male", "female"]:
+    if lang not in ["en", "vi"]:
         return jsonify({"Error": "Invalid language value. Use 'en' or 'vi'."}), 400
+    speed = int(speed)
     if speed > 20 or speed < -20:
         return jsonify({"Error": "Invalid speed value."}), 400
     
@@ -50,7 +51,7 @@ def tts_api():
                     os.unlink(audio_path)
                 except Exception as e:
                     print(f"Failed to delete {audio_path}. Reason: {e}")
-        output_path = asyncio.run(save_audio(text, filename, lang, gender))
+        output_path = asyncio.run(save_audio(text, filename, lang, gender, speed))
         if output_path is None:
             return jsonify({"Error": "Failed to generate audio."}), 500
         return send_file(output_path, as_attachment=True, download_name=filename)
@@ -66,14 +67,19 @@ def lip_sync():
     text = data["content"]
     gender = data.get("gender", "male").lower()
     lang = data.get("language", "en").lower()
+    speed = data.get("speed", "0")
     filename = f"output_{int(time.time())}.mp3"
 
     if gender not in ["male", "female"]:
         return jsonify({"Error": "Invalid gender value. Use 'male' or 'female'."}), 400
+    if lang not in ["en", "vi"]:
+        return jsonify({"Error": "Invalid language value. Use 'en' or 'vi'."}), 400
+    speed = int(speed)
+    if speed > 20 or speed < -20:
+        return jsonify({"Error": "Invalid speed value."}), 400
 
     try:
-        # Call the text_to_mouthshape_json function
-        lipsync_data = text_to_mouthshape_json(text, filename, lang, gender)
+        lipsync_data = text_to_mouthshape_json(text, filename, lang, gender, speed)
         
         if lipsync_data is None:
             return jsonify({"error": "Failed to generate lip sync data"}), 500
