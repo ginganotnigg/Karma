@@ -2,12 +2,12 @@ import os
 import json
 import subprocess
 import asyncio
-from tts import save_audio
+import tempfile
+from service.tts import save_audio
 from pydub import AudioSegment
 import shutil
 
 LIP_SYNC_TOOL_DIR = "Rhubarb"
-JSON_OUTPUT_DIR = "json"
 SPEEDUP_FACTOR = 4.0
 TIMEOUT = 15
 CLOSED_CUE_DURATION = 0.1
@@ -92,49 +92,67 @@ def adjust_timestamps(lipsync_data):
     return lipsync_data
 
 
-def convert_mp3_to_wav(mp3_path):
-    """
-    Converts the generated MP3 file to a WAV file (PCM 16-bit, 22.05kHz, mono).
-    """
+def convert_mp3_bytes_to_wav_bytes(mp3_bytes):
+    """Converts MP3 bytes to WAV bytes (PCM 16-bit, 22.05kHz, mono) using ffmpeg and SPEEDUP_FACTOR."""
     if not shutil.which("ffmpeg"):
         print("FFmpeg is not installed or not found in PATH.")
         return None
-    
-    wav_path = mp3_path.replace(".mp3", ".wav")
-    command = [
-        "ffmpeg",
-        "-i",
-        mp3_path,
-        "-filter:a",
-        f"atempo={SPEEDUP_FACTOR}",
-        "-ac",
-        "1",
-        "-ar",
-        "22050",
-        "-sample_fmt",
-        "s16",
-        "-y",
-        wav_path,
-    ]
+
+    temp_mp3_path = None
+    temp_wav_path = None
+
     try:
+        # Create a temporary MP3 file
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_mp3:
+            temp_mp3.write(mp3_bytes)
+            temp_mp3_path = temp_mp3.name
+
+        # Create a temporary WAV file
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_wav:
+            temp_wav_path = temp_wav.name
+
+        # Run ffmpeg command
+        command = [
+            "ffmpeg",
+            "-i",
+            temp_mp3_path,
+            "-filter:a",
+            f"atempo={SPEEDUP_FACTOR}",
+            "-ac",
+            "1",
+            "-ar",
+            "22050",
+            "-sample_fmt",
+            "s16",
+            "-y",
+            temp_wav_path,
+        ]
         subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        return wav_path
+        return temp_wav_path
     except subprocess.CalledProcessError as e:
-        print(f"Error converting MP3 to WAV: {e}")
+        print(f"Error converting MP3 bytes to WAV bytes: {e}")
         return None
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        return None
+    finally:
+        if temp_mp3_path and os.path.exists(temp_mp3_path):
+            os.remove(temp_mp3_path)
 
 
-def run_rhubarb_lip_sync(wav_path, lang): 
-    """Runs Rhubarb Lip Sync on the WAV file and generates a JSON output."""
+def run_rhubarb_lip_sync_bytes(temp_wav_path, lang):
+    """Runs Rhubarb Lip Sync on WAV bytes and generates a JSON output."""
     recognizer = "pocketSphinx" if lang == "us" else "phonetic"
+    
     command = [
         os.path.join(LIP_SYNC_TOOL_DIR, "rhubarb"),
-        wav_path,
+        temp_wav_path,
         "-f",
         "json",
         "-r",
         recognizer,
     ]
+    
     try:
         result = subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, 
                                 timeout=TIMEOUT)
@@ -144,52 +162,45 @@ def run_rhubarb_lip_sync(wav_path, lang):
         return None
     except subprocess.TimeoutExpired:
         print("Rhubarb process timed out after 15 seconds")
-        return None
+        if temp_wav_path and os.path.exists(temp_wav_path):
+            duration = get_audio_duration(temp_wav_path)
+            os.remove(temp_wav_path)
+        return load_template_json(duration)
+    finally:
+        if os.path.exists(temp_wav_path):
+            os.remove(temp_wav_path)
 
 
-def sync_save_audio(text, audio_filename, lang="en", gender="male", speed=0):
+def sync_save_audio(text, audio_filename, voice, speed=0):
     """Synchronous wrapper for save_audio function"""
     loop = asyncio.new_event_loop()
     try:
-        return loop.run_until_complete(save_audio(text, audio_filename, lang, gender, speed))
+        return loop.run_until_complete(save_audio(text, audio_filename, voice, speed))
     finally:
         loop.close()
 
 
-def text_to_mouthshape_json(text, audio_filename, lang="en", gender="male", speed=0): 
+def audio_to_mouthshape_json(mp3_bytes, voice):
     """Converts text to a Rhubarb Lip Sync JSON file."""
-    mp3_path = sync_save_audio(text, audio_filename, lang, gender, speed)
-    if mp3_path is None:
-        print("Failed to generate audio file.")
+    if mp3_bytes is None:
+        print("Failed to generate audio bytes.")
         return None
-    
-    wav_path = convert_mp3_to_wav(mp3_path)
-    if wav_path is None:
-        print("Failed to convert MP3 to WAV.")
+
+    wav_bytes = convert_mp3_bytes_to_wav_bytes(mp3_bytes)
+    if wav_bytes is None:
+        print("Failed to convert MP3 bytes to WAV bytes.")
         return None
-    
-    lipsync_data = run_rhubarb_lip_sync(wav_path, lang)
+
+    lang = voice[:2]
+    lipsync_data = run_rhubarb_lip_sync_bytes(wav_bytes, lang)
     
     if lipsync_data:
         lipsync_data = adjust_timestamps(lipsync_data)
         print("Lip sync JSON generated successfully!")
-        if mp3_path and os.path.exists(mp3_path):
-            os.remove(mp3_path)
-        if wav_path and os.path.exists(wav_path):
-            os.remove(wav_path)
-        return lipsync_data
     else:
-        audio_duration = get_audio_duration(mp3_path)
-        if mp3_path and os.path.exists(mp3_path):
-            os.remove(mp3_path)
-        if wav_path and os.path.exists(wav_path):
-            os.remove(wav_path)
         print("Failed to generate lip sync JSON.")
-        return load_template_json(audio_duration)
+    return lipsync_data
     
 
 if __name__ == "__main__":
-    text = "WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead."
-    audio_filename = "output.mp3"
-    lipsync_result = text_to_mouthshape_json(text, audio_filename)
-    print(json.dumps(lipsync_result, indent=2))
+    pass

@@ -51,7 +51,7 @@ document.addEventListener("DOMContentLoaded", function () {
         const text = document.getElementById("tts-text").value.trim();
         const lang = document.getElementById("tts-lang").value;
         const readerIndex = document.getElementById("tts-reader-id").value;
-        const speed = speedSlider.value; // Get speed from slider
+        const speed = speedSlider.value;
 
         document.getElementById("loading").style.display = "block";
         document.getElementById("result").innerText = "";
@@ -78,17 +78,30 @@ document.addEventListener("DOMContentLoaded", function () {
                         throw new Error(errorData.Error || "An error occurred.");
                     });
                 }
-                return response.blob();
+                return response.json(); // Get JSON response
             })
-            .then(blob => {
-                const url = window.URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.href = url;
-                const filename = `tts_audio_${Date.now()}.mp3`;
-                link.download = filename;
-                link.click();
-                window.URL.revokeObjectURL(url);
-                document.getElementById("result").innerText = "Audio downloaded successfully!";
+            .then(data => {
+                if (data && data.audio) {
+                    // Decode base64
+                    const audioBytes = atob(data.audio);
+                    const audioBuffer = new Uint8Array(audioBytes.length);
+                    for (let i = 0; i < audioBytes.length; i++) {
+                        audioBuffer[i] = audioBytes.charCodeAt(i);
+                    }
+    
+                    // Create Blob
+                    const blob = new Blob([audioBuffer], { type: 'audio/mpeg' });
+                    const url = window.URL.createObjectURL(blob);
+    
+                    // Play audio
+                    const audio = new Audio(url);
+                    audio.play();
+    
+                    window.URL.revokeObjectURL(url);
+                    document.getElementById("result").innerText = "Audio played successfully!";
+                } else {
+                    document.getElementById("result").innerText = "Error: Audio data not found in response.";
+                }
             })
             .catch(error => {
                 document.getElementById("result").innerText = "Error: " + error.message;
@@ -103,16 +116,16 @@ document.addEventListener("DOMContentLoaded", function () {
         const lang = document.getElementById("tts-lang").value;
         const readerIndex = document.getElementById("tts-reader-id").value;
         const speed = document.getElementById("speed-slider").value;
-    
+
         document.getElementById("loading").style.display = "block";
         document.getElementById("result").innerText = "";
-    
+
         if (!text) {
             alert("Please enter text to speak.");
             document.getElementById("loading").style.display = "none";
             return;
         }
-    
+
         fetch("/api/lip-sync", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
