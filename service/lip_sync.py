@@ -75,7 +75,7 @@ def load_template_json(audio_duration, template_path="template.json"):
     return {
         "metadata": {
             "duration": audio_duration,
-            "soundFile": "/app/audio/output_0000000000.wav"
+            "soundFile": "/tmp/tmpabcdef1.wav"
         },
         "mouthCues": filtered_mouth_cues
     }

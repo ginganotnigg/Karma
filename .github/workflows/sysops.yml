@@ -1,0 +1,66 @@
+name: Notify SysOps Repo
+
+on:
+  workflow_run:
+    workflows: ["create tag"]
+    types:
+      - completed
+
+jobs:
+  notify-sysops:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Get latest tag
+        id: get_tag
+        run: |
+          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "Latest tag: $TAG"
+          echo "::set-output name=tag::$TAG"
+
+      - name: Extract repo name
+        run: |
+          REPO_NAME=$(basename $GITHUB_REPOSITORY)
+          echo "REPO_NAME=${REPO_NAME}" >> $GITHUB_ENV
+
+      - name: Checkout SysOps Repo
+        run: |
+          git clone https://${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/ChisTrun/sysops-skillsharp.git
+          cd sysops-skillsharp
+          git config --global user.name "ChisTrun"
+          git config --global user.email "vochitrung.pst@gmail.com"
+
+      - name: Create Branch & Update Dockerfile
+        run: |
+          cd sysops-skillsharp
+          BRANCH_NAME="update-${{ env.REPO_NAME }}-${{ steps.get_tag.outputs.tag }}"
+
+          # Kiểm tra nếu branch đã tồn tại thì checkout, nếu chưa thì tạo mới
+          if git ls-remote --heads origin $BRANCH_NAME | grep $BRANCH_NAME; then
+            git checkout $BRANCH_NAME
+            git pull --rebase origin $BRANCH_NAME
+          else
+            git checkout -b $BRANCH_NAME
+          fi
+
+          # Cập nhật Dockerfile của service tương ứng
+          sed -i "s|\(FROM .*:\)[^ ]*|\1${{ steps.get_tag.outputs.tag }}|g" backend/${{ env.REPO_NAME }}/build/Dockerfile
+
+          git add .
+          git commit -m "Update ${{ env.REPO_NAME }} to tag ${{ steps.get_tag.outputs.tag }}"
+          git push origin $BRANCH_NAME
+
+      - name: Create Pull Request
+        env:
+          GH_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+        run: |
+          cd sysops-skillsharp
+          gh pr create --title "Update ${{ env.REPO_NAME }} to tag ${{ env.TAG }}" \
+                      --body "Automated PR to update ${{ env.REPO_NAME }} image version to ${{ env.TAG }}" \
+                      --base main \
+                      --head "$BRANCH_NAME" \
+                      --repo "ChisTrun/sysops-skillsharp"

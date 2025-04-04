@@ -82,23 +82,8 @@ document.addEventListener("DOMContentLoaded", function () {
             })
             .then(data => {
                 if (data && data.audio) {
-                    // Decode base64
-                    const audioBytes = atob(data.audio);
-                    const audioBuffer = new Uint8Array(audioBytes.length);
-                    for (let i = 0; i < audioBytes.length; i++) {
-                        audioBuffer[i] = audioBytes.charCodeAt(i);
-                    }
-    
-                    // Create Blob
-                    const blob = new Blob([audioBuffer], { type: 'audio/mpeg' });
-                    const url = window.URL.createObjectURL(blob);
-    
-                    // Play audio
-                    const audio = new Audio(url);
-                    audio.play();
-    
-                    window.URL.revokeObjectURL(url);
-                    document.getElementById("result").innerText = "Audio played successfully!";
+                    // Decode base64 and play audio
+                    playMp3FromBase64(data.audio);
                 } else {
                     document.getElementById("result").innerText = "Error: Audio data not found in response.";
                 }
@@ -158,4 +143,41 @@ document.addEventListener("DOMContentLoaded", function () {
                 document.getElementById("loading").style.display = "none";
             });
     });
+
+    function playMp3FromBase64(base64) {
+      try {
+        const decodedBytes = base64ToUint8Array(base64);
+        const blob = new Blob([decodedBytes], { type: 'audio/mpeg' });
+        const url = URL.createObjectURL(blob);
+
+        const audio = new Audio(url);
+        audio.addEventListener('error', (error) => {
+          console.error('Audio playback error:', error);
+          document.getElementById("result").innerText = "Error playing audio.";
+        });
+        audio.play();
+
+        audio.onended = () => URL.revokeObjectURL(url);
+        document.getElementById("result").innerText = "Audio played successfully!";
+      } catch (error) {
+          console.error("Error playing MP3:", error);
+          document.getElementById("result").innerText = "Error playing audio.";
+      }
+    }
+
+    function base64ToUint8Array(base64) {
+      try {
+        const binaryString = atob(base64);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        return bytes;
+      } catch (error) {
+        console.error("Base64 decoding error:", error);
+        document.getElementById("result").innerText = "Error decoding audio.";
+        return null;
+      }
+    }
 });
