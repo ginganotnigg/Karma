@@ -1,0 +1,41 @@
+tts:
+  edge_tts:
+    english_voices:
+      male:
+        - "en-US-GuyNeural"
+        - "en-GB-RyanNeural"
+        - "en-AU-WilliamNeural"
+        - "en-CA-LiamNeural"
+        - "en-IN-PrabhatNeural"
+      female:
+        - "en-US-JennyNeural"
+        - "en-GB-SoniaNeural"
+        - "en-AU-NatashaNeural"
+        - "en-CA-ClaraNeural"
+        - "en-IN-NeerjaNeural"
+    vietnamese_voice:
+      male: "vi-VN-NamMinhNeural"
+      female: "vi-VN-HoaiMyNeural"
+  pyttsx3:
+    default_rate: 160
+    english_voices:
+      male:
+        - "com.apple.speech.synthesis.voice.Fred"
+        - "com.apple.voice.compact.en-GB.Daniel"
+        - "com.apple.speech.synthesis.voice.Albert"
+        - "com.apple.speech.synthesis.voice.Albert"
+        - "com.apple.voice.compact.en-IN.Rishi"
+      female:
+        - "com.apple.voice.compact.en-US.Samantha"
+        - "com.apple.speech.synthesis.voice.Kathy"
+        - "com.apple.voice.compact.en-US.Samantha"
+        - "com.apple.speech.synthesis.voice.Kathy"
+        - "com.apple.voice.compact.en-ZA.Tessa"
+    vietnamese_voice: 
+      male: "com.apple.voice.compact.vi-VN.Linh"
+      female: "com.apple.voice.compact.vi-VN.Linh"
+lip_sync:
+  timeout: 10
+  tool_dir: "Rhubarb"
+  speedup_factor: 2.0
+  closed_cue_duration: 0.1

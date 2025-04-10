@@ -1,4 +1,6 @@
+pyttsx3
 edge-tts
 asyncio
+pyyaml
 numpy
 pydub
