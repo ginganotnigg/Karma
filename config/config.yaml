@@ -43,3 +43,5 @@ lip_sync:
   tool_dir: "Rhubarb"
   speedup_factor: 2.0
   closed_cue_duration: 0.1
+path:
+  template: "service/template.json"

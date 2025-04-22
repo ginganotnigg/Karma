@@ -25,6 +25,8 @@ LIP_SYNC_TOOL_DIR = config['lip_sync']['tool_dir']
 SPEEDUP_FACTOR = config['lip_sync']['speedup_factor']
 TIMEOUT = config['lip_sync']['timeout']
 CLOSED_CUE_DURATION = config['lip_sync']['closed_cue_duration']
+TEMPLATE_PATH = config['path']['template']
+
 
 
 def get_audio_duration(audio_path):
@@ -52,7 +54,7 @@ def get_audio_duration(audio_path):
         logger.error(f"Error getting audio duration: {str(e)}")
         return 0.0
 
-def load_template_json(audio_duration, template_path="template.json"):
+def load_template_json(audio_duration, template_path=TEMPLATE_PATH):
     """Loads and cuts the template JSON based on audio duration."""
     logger.info(f"Loading template JSON with audio duration: {audio_duration}")
     try:
@@ -178,10 +180,15 @@ def convert_mp3_bytes_to_wav_bytes(mp3_bytes):
 
 def run_rhubarb_lip_sync_bytes(temp_wav_path, lang):
     """Runs Rhubarb Lip Sync on WAV bytes and generates a JSON output."""
-    recognizer = "pocketSphinx" if lang == "us" else "phonetic"
+    recognizer = "pocketSphinx" if lang == "en" else "phonetic"
     
     logger.info(f"Running Rhubarb lip sync with recognizer: {recognizer}")
-    
+
+    if temp_wav_path and os.path.exists(temp_wav_path):
+        duration = get_audio_duration(temp_wav_path)
+    else:
+        duration = -1
+
     command = [
         os.path.join(LIP_SYNC_TOOL_DIR, "rhubarb"),
         temp_wav_path,
@@ -190,14 +197,11 @@ def run_rhubarb_lip_sync_bytes(temp_wav_path, lang):
         "-r",
         recognizer,
     ]
-    
-    duration = -1
+
     try:
         logger.debug(f"Executing Rhubarb command: {' '.join(command)}")
         result = subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, 
                                 timeout=TIMEOUT)
-        if temp_wav_path and os.path.exists(temp_wav_path):
-            duration = get_audio_duration(temp_wav_path)
         logger.info("Rhubarb completed successfully")
         return json.loads(result.stdout), duration
     except subprocess.CalledProcessError as e:
@@ -250,7 +254,10 @@ def audio_to_mouthshape_json(mp3_bytes, voice):
             logger.error("Failed to convert MP3 bytes to WAV bytes")
             return None
 
-        lang = voice[:2]
+        if "vi" in voice:
+            lang = "vi"
+        else:
+            lang = "en"
         logger.debug(f"Detected language: {lang}")
         lipsync_data, duration = run_rhubarb_lip_sync_bytes(wav_bytes, lang)
         
