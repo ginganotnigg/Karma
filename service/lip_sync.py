@@ -4,7 +4,6 @@ import subprocess
 import asyncio
 import tempfile
 from service.edge_tts import edge_save_audio
-# from service.py_tts import py_save_audio
 from pydub import AudioSegment
 import shutil
 import logging
@@ -26,33 +25,26 @@ SPEEDUP_FACTOR = config['lip_sync']['speedup_factor']
 TIMEOUT = config['lip_sync']['timeout']
 CLOSED_CUE_DURATION = config['lip_sync']['closed_cue_duration']
 TEMPLATE_PATH = config['path']['template']
+DIGITS_AFTER_DECIMAL = 2
 
 
+def round_time(num):
+    return round(num, DIGITS_AFTER_DECIMAL)
 
 def get_audio_duration(audio_path):
-    """Get the duration of an audio file in seconds using ffmpeg"""
+    """Get the duration of an audio file in seconds using pydub"""
     if not os.path.exists(audio_path):
         logger.error(f"Audio file not found: {audio_path}")
-        return None
-        
-    cmd = ["ffmpeg", "-i", audio_path, "-f", "null", "-"]
+        return -1
+    
     try:
         logger.debug(f"Getting duration for audio file: {audio_path}")
-        output = subprocess.check_output(cmd, stderr=subprocess.STDOUT, universal_newlines=True)
-        
-        for line in output.split('\n'):
-            if "Duration" in line:
-                time_str = line.split("Duration: ")[1].split(",")[0].strip()
-                h, m, s = time_str.split(':')
-                duration = float(h) * 3600 + float(m) * 60 + float(s)
-                logger.debug(f"Audio duration: {duration} seconds")
-                return duration
-        
-        logger.warning("Could not find duration information in ffmpeg output")
-        return 0.0
-    except subprocess.CalledProcessError as e:
+        audio = AudioSegment.from_file(audio_path)
+        duration = len(audio) / 1000.0
+        return duration
+    except Exception as e:
         logger.error(f"Error getting audio duration: {str(e)}")
-        return 0.0
+        return -1
 
 def load_template_json(audio_duration, template_path=TEMPLATE_PATH):
     """Loads and cuts the template JSON based on audio duration."""
@@ -87,21 +79,25 @@ def load_template_json(audio_duration, template_path=TEMPLATE_PATH):
     if filtered_mouth_cues:
         last_cue_end = filtered_mouth_cues[-1]["end"]
         if last_cue_end > audio_duration:
-            filtered_mouth_cues[-1]["end"] = audio_duration - CLOSED_CUE_DURATION
-            filtered_mouth_cues[-1]["start"] = min(filtered_mouth_cues[-1]["start"], filtered_mouth_cues[-1]["end"])
+            filtered_mouth_cues[-1]["end"] = round_time(audio_duration - CLOSED_CUE_DURATION)
+            filtered_mouth_cues[-1]["start"] = round_time(min(filtered_mouth_cues[-1]["start"], filtered_mouth_cues[-1]["end"]))
 
         closed_cue = {
-            "start": audio_duration - CLOSED_CUE_DURATION,
-            "end": audio_duration,
+            "start": round_time(audio_duration - CLOSED_CUE_DURATION),
+            "end": round_time(audio_duration),
             "value": "X"
         }
         filtered_mouth_cues.append(closed_cue)
     else:
-        filtered_mouth_cues.append({"start": audio_duration - CLOSED_CUE_DURATION, "end": audio_duration, "value": "X"})
+        filtered_mouth_cues.append({
+            "start": round_time(audio_duration - CLOSED_CUE_DURATION), 
+            "end": round_time(audio_duration), 
+            "value": "X"
+        })
 
     result = {
         "metadata": {
-            "duration": audio_duration,
+            "duration": round_time(audio_duration),
             "soundFile": "/tmp/tmpabcdef1.wav"
         },
         "mouthCues": filtered_mouth_cues
@@ -113,11 +109,15 @@ def adjust_timestamps(lipsync_data):
     """Adjusts timestamps in the Rhubarb JSON output."""
     logger.info(f"Adjusting timestamps with speedup factor: {SPEEDUP_FACTOR}")
     if "mouthCues" in lipsync_data and "metadata" in lipsync_data:
-        lipsync_data["metadata"]["duration"] *= SPEEDUP_FACTOR
+        lipsync_data["metadata"]["duration"] = round_time(lipsync_data["metadata"]["duration"] * SPEEDUP_FACTOR)
         
         for frame in lipsync_data["mouthCues"]:
-            frame["start"] *= SPEEDUP_FACTOR
-            frame["end"] *= SPEEDUP_FACTOR
+            frame["start"] = round_time(frame["start"] * SPEEDUP_FACTOR)
+            frame["end"] = round_time(frame["end"] * SPEEDUP_FACTOR)
+            
+            # Ensure start and end values are not identical
+            if frame["start"] == frame["end"] and frame["start"] > 0:
+                frame["start"] = round_time(frame["start"] - 0.01)
     else:
         logger.warning("Invalid lipsync data structure, could not adjust timestamps")
     return lipsync_data
@@ -184,11 +184,6 @@ def run_rhubarb_lip_sync_bytes(temp_wav_path, lang):
     
     logger.info(f"Running Rhubarb lip sync with recognizer: {recognizer}")
 
-    if temp_wav_path and os.path.exists(temp_wav_path):
-        duration = get_audio_duration(temp_wav_path)
-    else:
-        duration = -1
-
     command = [
         os.path.join(LIP_SYNC_TOOL_DIR, "rhubarb"),
         temp_wav_path,
@@ -203,21 +198,19 @@ def run_rhubarb_lip_sync_bytes(temp_wav_path, lang):
         result = subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, 
                                 timeout=TIMEOUT)
         logger.info("Rhubarb completed successfully")
-        return json.loads(result.stdout), duration
+        return json.loads(result.stdout)
     except subprocess.CalledProcessError as e:
         logger.error(f"Error running Rhubarb: {str(e)}")
         if e.stderr:
             logger.error(f"Rhubarb error output: {e.stderr.decode()}")
-        return None, -1
+        return None
     except subprocess.TimeoutExpired:
         logger.error(f"Rhubarb process timed out after {TIMEOUT} seconds")
-        logger.info(f"Falling back to template JSON with duration: {duration}")
-        if duration >= 0:
-            return load_template_json(duration), duration
-        return None, -1
+        logger.info(f"Falling back to template JSON")
+        return None
     except json.JSONDecodeError as e:
         logger.error(f"Failed to parse Rhubarb JSON output: {str(e)}")
-        return None, -1
+        return None
     finally:
         if os.path.exists(temp_wav_path):
             try:
@@ -254,22 +247,26 @@ def audio_to_mouthshape_json(mp3_bytes, voice):
             logger.error("Failed to convert MP3 bytes to WAV bytes")
             return None
 
+        # Calculate audio duration once
+        duration = -1
+        if wav_bytes and os.path.exists(wav_bytes):
+            duration = get_audio_duration(wav_bytes)
+            logger.info(f"Audio duration with speedup: {duration} seconds")
+
         if "vi" in voice:
             lang = "vi"
         else:
             lang = "en"
         logger.debug(f"Detected language: {lang}")
-        lipsync_data, duration = run_rhubarb_lip_sync_bytes(wav_bytes, lang)
+        
+        lipsync_data = run_rhubarb_lip_sync_bytes(wav_bytes, lang)
         
         if lipsync_data:
             logger.info("Adjusting timestamps for lip sync data")
             lipsync_data = adjust_timestamps(lipsync_data)
-            logger.info("Lip sync JSON generated successfully!")
         else:
-            logger.info(f"Falling back to template JSON with duration: {duration}")
-            if duration >= 0:
-                lipsync_data = load_template_json(duration)
-        
+            lipsync_data = load_template_json(duration * SPEEDUP_FACTOR)
+        logger.info("Lip sync JSON generated successfully!")
         return lipsync_data
     except Exception as e:
         logger.error(f"Unexpected error in audio_to_mouthshape_json: {str(e)}", exc_info=True)
