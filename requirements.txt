@@ -4,3 +4,4 @@ asyncio
 pyyaml
 numpy
 pydub
+librosa

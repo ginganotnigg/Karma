@@ -4,6 +4,7 @@ import numpy as np
 from typing import Optional
 import yaml
 import logging
+import os
 
 # Load configuration from config.yaml
 with open("config/config.yaml", 'r') as config_file:
@@ -74,6 +75,21 @@ async def generate_edge_tts(text: str, voice: str, speed_str: str) -> Optional[b
     except Exception as e:
         logger.error(f"Error generating Edge-TTS audio: {e}", exc_info=True)
         return None
+    
+
+async def generate_edge(text, voice, filename):
+    """
+    Generates speech using Edge-TTS and saves it as a file.
+    """
+    os.makedirs("audio", exist_ok=True)
+    output_path = os.path.join("audio", filename)
+    try:
+        communicate = edge_tts.Communicate(text, voice=voice)
+        await communicate.save(output_path)
+        return output_path
+    except Exception as e:
+        print(f"Error generating Edge-TTS audio: {e}")
+        return None
 
 async def edge_save_audio(text: str, voice: str, speed: int = 0) -> Optional[bytes]:
     """
@@ -83,6 +99,7 @@ async def edge_save_audio(text: str, voice: str, speed: int = 0) -> Optional[byt
     sign = "+" if speed >= 0 else ""
     speed_str = f"{sign}{speed}%"
     return await generate_edge_tts(text, voice, speed_str)
+
 
 if __name__ == "__main__":
     pass

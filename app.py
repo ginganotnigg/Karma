@@ -1,12 +1,12 @@
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, send_file
 from flask_cors import CORS
 import asyncio
-from service.edge_tts import edge_save_audio, edge_get_voice
-# from service.py_tts import py_save_audio, py_get_voice
+from service.edge_tts import edge_save_audio, edge_get_voice, generate_edge
+from service.score import evaluate_fluency, get_fluency_feedback
 from service.lip_sync import audio_to_mouthshape_json
 import base64
 import logging
-import yaml
+import tempfile
 
 # Configure logging
 logging.basicConfig(
@@ -28,12 +28,17 @@ def tts_api():
     data = request.get_json()
     if not data or "content" not in data:
         return jsonify({"Error": "Missing 'content' parameter"}), 400
+    
 
     text = data["content"]
     gender = data.get("gender", "male").lower()
     lang = data.get("language", "en").lower()
     voice = data.get("voiceId", edge_get_voice(lang, gender))
     speed = data.get("speed", "0")
+    if "filename" in data:
+        filename = data["filename"]
+        output_data = asyncio.run(generate_edge(text, voice, filename))
+        return send_file(output_data, as_attachment=True, download_name=filename)
 
     speed = int(speed)
     if speed > 20 or speed < -20:
@@ -91,6 +96,24 @@ def lip_sync():
 
         return jsonify({"audio": audio_base64,
                         "lipsync": lipsync_data}), 200
+    except Exception as e:
+        print(f"Unexpected error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+    
+@app.route('/api/audio-score', methods=['POST'])
+def score():
+    data = request.get_json()
+    if not data or "transcript" not in data or "recordProof" not in data:
+        return jsonify({"Error": "Missing parameter"}), 400
+
+    text = data["transcript"]
+    audio_base64 = data["recordProof"]
+    audio_bytes = base64.b64decode(audio_base64)
+    try:
+        fluency_results = evaluate_fluency(audio_bytes, text)
+        feedback = get_fluency_feedback(fluency_results)
+        return jsonify({"results": fluency_results,
+                        "actionableFeedback": feedback}), 200
     except Exception as e:
         print(f"Unexpected error: {str(e)}")
         return jsonify({"error": str(e)}), 500
