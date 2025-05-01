@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, send_from_directory, send_file
 from flask_cors import CORS
 import asyncio
 from service.edge_tts import edge_save_audio, edge_get_voice, generate_edge
-from service.score import evaluate_fluency, get_fluency_feedback
+from service.score import evaluate_fluency, get_fluency_feedback, calculate_overall_grade, generate_combined_feedback
 from service.lip_sync import audio_to_mouthshape_json
 import base64
 import logging
@@ -103,20 +103,74 @@ def lip_sync():
 @app.route('/api/audio-score', methods=['POST'])
 def score():
     data = request.get_json()
-    if not data or "transcript" not in data or "recordProof" not in data:
-        return jsonify({"Error": "Missing parameter"}), 400
+    if not data or "submissions" not in data:
+        return jsonify({"error": "Missing submissions parameter"}), 400
 
-    text = data["transcript"]
-    audio_base64 = data["recordProof"]
-    audio_bytes = base64.b64decode(audio_base64)
-    try:
-        fluency_results = evaluate_fluency(audio_bytes, text)
-        feedback = get_fluency_feedback(fluency_results)
-        return jsonify({"results": fluency_results,
-                        "actionableFeedback": feedback}), 200
-    except Exception as e:
-        print(f"Unexpected error: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+    submissions = data["submissions"]
+    if not isinstance(submissions, list) or len(submissions) == 0:
+        return jsonify({"error": "Submissions must be a non-empty array"}), 400
+
+    results = []
+    all_fluency_scores = []
+
+    for submission in submissions:
+        # Validate submission data
+        if "index" not in submission or "answer" not in submission or "recordProof" not in submission:
+            return jsonify({"error": f"Submission at index {submission.get('index', 'unknown')} is missing required fields"}), 400
+
+        try:
+            # Process each submission
+            index = submission["index"]
+            text = submission["answer"]
+            audio_base64 = submission["recordProof"]
+            
+            # Decode audio data
+            try:
+                audio_bytes = base64.b64decode(audio_base64)
+            except Exception as e:
+                return jsonify({"error": f"Invalid audio data for submission {index}: {str(e)}"}), 400
+            
+            # Evaluate fluency
+            fluency_results = evaluate_fluency(audio_bytes, text)
+            feedback = get_fluency_feedback(fluency_results)
+            
+            # Store the letter grade for overall skill calculation
+            all_fluency_scores.append(fluency_results["percentage"])
+            
+            # Create comment from feedback
+            comment = "; ".join(feedback) if feedback else ""
+            
+            # Add to results
+            results.append({
+                "index": index,
+                "comment": comment,
+                "score": fluency_results["overall_score"],
+                "percentage": fluency_results["percentage"],
+            })
+            
+        except Exception as e:
+            # If one submission fails, add an error result but continue processing others
+            results.append({
+                "index": submission.get("index", 0),
+                "comment": f"Error processing submission: {str(e)}",
+                "score": "F"
+            })
+            
+    # Calculate overall fluency skill grade
+    total_fluency = calculate_overall_grade(all_fluency_scores)
+    
+    # Generate combined actionable feedback
+    actionable_feedback = generate_combined_feedback(results)
+    
+    # Return the complete response
+    return jsonify({
+        "result": results,
+        "skills": {
+            "Fluency": total_fluency
+        },
+        "actionableFeedback": actionable_feedback
+    }), 200
+
 
 if __name__ == "__main__":
     app.run(debug=True)

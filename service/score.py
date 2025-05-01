@@ -18,18 +18,18 @@ MIN_SILENCE_DURATION = 0.5  # seconds
 SILENCE_THRESHOLD_FACTOR = 0.5
 
 # English ranges
-WPM_RANGE_EN = [80, 220, 150]
-PAUSE_FREQ_RANGE_EN = [0, 40, 12]
-AVG_PAUSE_DURATION_RANGE_EN = [0.2, 1.5, 0.6]
-FILLER_WORD_RATIO_RANGE_EN = [0.02, 0.3, 0.06]
-PITCH_VARIATION_RANGE_EN = [50, 300, 130]
+WPM_RANGE_EN = [80, 220]
+PAUSE_FREQ_RANGE_EN = [0, 40]
+AVG_PAUSE_DURATION_RANGE_EN = [0.2, 1.5]
+FILLER_WORD_RATIO_RANGE_EN = [0.0, 0.3]
+PITCH_VARIATION_RANGE_EN = [50, 300]
 
 # Vietnamese ranges (adjusted for Vietnamese speech patterns)
-WPM_RANGE_VI = [70, 200, 140]  # Vietnamese may have slightly slower speech
-PAUSE_FREQ_RANGE_VI = [0, 45, 15]  # May have more frequent pauses due to tonal patterns
-AVG_PAUSE_DURATION_RANGE_VI = [0.2, 1.7, 0.7]  # Similar but slightly adjusted
-FILLER_WORD_RATIO_RANGE_VI = [0.02, 0.3, 0.06]  # Similar to English
-PITCH_VARIATION_RANGE_VI = [80, 350, 160]  # Higher variation due to tonal nature
+WPM_RANGE_VI = [70, 200]  # Vietnamese may have slightly slower speech
+PAUSE_FREQ_RANGE_VI = [0, 45]  # May have more frequent pauses due to tonal patterns
+AVG_PAUSE_DURATION_RANGE_VI = [0.2, 1.7]  # Similar but slightly adjusted
+FILLER_WORD_RATIO_RANGE_VI = [0.0, 0.3]  # Similar to English
+PITCH_VARIATION_RANGE_VI = [80, 350]  # Higher variation due to tonal nature
 DIGITS_AFTER_DECIMAL = 2
 
 
@@ -167,20 +167,18 @@ def extract_audio_features(audio_bytes):
         # Use more efficient pitch tracking with bounds
         if len(y) > 0:
             try:
-                # For pitch extraction, use a more memory-efficient approach
-                f0, voiced_flag, voiced_probs = librosa.pyin(
+                # Use librosa.yin instead of pyin to avoid Numba issues
+                f0 = librosa.yin(
                     y,
                     fmin=librosa.note_to_hz('C2'),
                     fmax=librosa.note_to_hz('C7'),
                     sr=sr,
-                    hop_length=HOP_LENGTH * 2,  # Increase hop length for efficiency
-                    fill_na=0.0
+                    frame_length=FRAME_SIZE * 2,
+                    hop_length=HOP_LENGTH * 2
                 )
-                if f0 is None:
-                    f0 = np.zeros(len(y) // HOP_LENGTH + 1)
             except Exception as e:
-                logger.warning(f"Failed to extract pitch: {e}, using zero array")
-                f0 = np.zeros(len(y) // HOP_LENGTH + 1)
+                logger.warning(f"Failed to extract pitch with YIN: {e}, using zero array")
+                f0 = np.zeros(len(y) // (HOP_LENGTH * 2) + 1)
         else:
             f0 = np.array([0.0])
             
@@ -455,26 +453,19 @@ def analyze_audio_transcript_mismatch(audio_bytes, transcript):
 def normalize_score(value, range_values):
     """
     Normalize a score to [0, 1] based on how close 'value' is to the ideal within [min_val, max_val].
-    If ideal_val is not specified, assumes best performance is at the midpoint.
     Penalizes values outside the range more sharply.
     """
-    min_val, max_val, ideal_val = range_values
-    
-    if ideal_val is None:
-        ideal_val = (min_val + max_val) / 2
+    min_val, max_val = range_values
+    ideal_val = (min_val + max_val) / 2
 
     if min_val == max_val:
         return 1.0  # Avoid division by zero, assume perfect score
 
-    ideal_range = (max_val - min_val)
-    if value < min_val:
-        return max(0.0, 1 - abs(min_val - value) / ideal_range)
-    elif value > max_val:
-        return max(0.0, 1 - abs(value - max_val) / ideal_range)
-    else:
-        # Inside range, now penalize based on distance from ideal
-        distance = abs(value - ideal_val)
-        return max(0.0, 1 - (distance / ideal_range))
+    ideal_range = (max_val - ideal_val)
+    distance = abs(value - ideal_val)
+    if value < min_val or value > max_val:
+        return max(0.0, 1.2 - 0.6 * distance / ideal_range)
+    return max(0.0, 1 - 0.4 * distance / ideal_range)
 
 def evaluate_fluency(audio_bytes, transcript):
     """
@@ -572,6 +563,7 @@ def evaluate_fluency(audio_bytes, transcript):
         result = {
             "language": language,
             "overall_score": score,
+            "percentage": int(round_score(basic_fluency_score) * 100),
             "wpm": round_score(wpm),
             "pause_frequency": round_score(pause_freq),
             "average_pause_duration": round_score(avg_pause_duration),
@@ -608,6 +600,7 @@ def evaluate_fluency(audio_bytes, transcript):
         return {
             "language": "en",
             "overall_score": "F",
+            "percentage": 0,
             "error": f"Evaluation failed: {str(e)}",
             "wpm": 0,
             "pause_frequency": 0,
@@ -629,49 +622,120 @@ def get_fluency_feedback(fluency_results):
     # Speaking rate
     wpm = fluency_results["wpm"]
     ranges = get_ranges_for_language(language)
-    wpm_min, wpm_max, _ = ranges["wpm"]
+    wpm_min, wpm_max = ranges["wpm"]
     
     if wpm < wpm_min:
-        feedback.append(f"Your speaking rate of {wpm:.1f} words per minute is slower than the recommended {wpm_min}-{wpm_max} wpm range. Consider practicing speaking at a slightly faster pace.")
+        feedback.append(f"Low wpm")
     elif wpm > wpm_max:
-        feedback.append(f"Your speaking rate of {wpm:.1f} words per minute is faster than the recommended {wpm_min}-{wpm_max} wpm range. Try slowing down a bit to improve clarity.")
+        feedback.append(f"High wpm")
     
     # Pauses
     pause_freq = fluency_results["pause_frequency"]
     avg_pause = fluency_results["average_pause_duration"]
     
     if pause_freq > ranges["pause_freq"][1]:
-        feedback.append(f"You're pausing too frequently ({pause_freq:.1f} pauses per minute). Try to speak in longer, more complete phrases.")
+        feedback.append(f"Pausing too much")
     
     if avg_pause > ranges["pause_duration"][1]:
-        feedback.append(f"Your pauses are quite long (average {avg_pause:.2f} seconds). Work on reducing pause duration to maintain listener engagement.")
+        feedback.append(f"Long pauses")
     
     # Filler words
     filler_count = fluency_results["filler_word_count"]
     if filler_count > 0:
-        feedback.append(f"You used {filler_count} filler words. Reducing these will make your speech sound more confident.")
+        feedback.append(f"Many filler words")
     
     # Repetitions
     repetition_count = fluency_results["repetition_count"]
     if repetition_count > 5:
-        feedback.append(f"You repeated some words excessively ({repetition_count} instances). Try to use more varied vocabulary.")
+        feedback.append(f"Repetition vocabulary")
     
     # Speech rate consistency
     consistency = fluency_results["speech_rate_consistency"]
     if consistency < 0.6:
-        feedback.append("Your speaking pace varies considerably. Practice maintaining a more consistent rate of speech.")
+        feedback.append("Speaking pace unconsistency")
     
     # For Vietnamese only
     if language == 'vi':
         human_score = fluency_results.get("human_likelihood_score", 1.0)
         if human_score < 0.7:
-            feedback.append("Your speech patterns seem somewhat artificial or rehearsed. Try to speak more naturally and conversationally.")
+            feedback.append("Artificial or rehearsed")
         
         match_score = fluency_results.get("audio_transcript_match", 1.0)
         if match_score < 0.7:
-            feedback.append("There appears to be some mismatch between your audio and transcript. Please ensure you're speaking the exact words in the transcript.")
+            feedback.append("Mismatch with transcript")
     
     return feedback
+
+def calculate_overall_grade(grades):
+    """
+    Calculate an overall letter grade from individual letter grades.
+    """
+    if not grades:
+        return "F"
+    
+    # Calculate average
+    avg_grade = sum(grades) / len(grades)
+    
+    # Convert back to letter grade
+    if avg_grade >= 80:
+        return "A"
+    elif avg_grade >= 60:
+        return "B"
+    elif avg_grade >= 40:
+        return "C"
+    elif avg_grade >= 20:
+        return "D"
+    else:
+        return "F"
+
+
+def generate_combined_feedback(results):
+    """
+    Generate combined actionable feedback from all submissions.
+    """
+    # Extract common issues from comments
+    common_issues = {
+        "wpm": 0,
+        "pauses": 0,
+        "filler_words": 0,
+        "repetitions": 0,
+        "consistency": 0
+    }
+    
+    for result in results:
+        comment = result["comment"].lower()
+        if "wpm" in comment:
+            common_issues["wpm"] += 1
+        if "pausing" in comment or "pauses" in comment:
+            common_issues["pauses"] += 1
+        if "filler words" in comment:
+            common_issues["filler_words"] += 1
+        if "repetition" in comment:
+            common_issues["repetitions"] += 1
+        if "unconsistency" in comment:
+            common_issues["consistency"] += 1
+    
+    # Generate feedback based on most common issues
+    feedback_lines = []
+    total_submissions = len(results)
+    
+    if common_issues["wpm"] > total_submissions / 3:
+        feedback_lines.append("Work on your speaking rate: Practice maintaining an appropriate pace (not too fast or too slow)")
+    
+    if common_issues["pauses"] > total_submissions / 3:
+        feedback_lines.append("Improve your pausing: Focus on natural pauses at punctuation points rather than mid-sentence")
+    
+    if common_issues["filler_words"] > total_submissions / 3:
+        feedback_lines.append("Reduce filler words: Try to eliminate words like 'um', 'uh', and 'like' with conscious practice")
+    
+    if common_issues["repetitions"] > total_submissions / 3:
+        feedback_lines.append("Avoid word repetition: Expand your vocabulary and practice using synonyms")
+    
+    if common_issues["consistency"] > total_submissions / 3:
+        feedback_lines.append("Improve speech consistency: Practice maintaining a steady speaking rhythm")
+    
+    return "\n".join(feedback_lines)
+
 
 if __name__ == "__main__":
     audio_file = "test.mp3"  # Use your existing MP3 file

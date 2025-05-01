@@ -2,6 +2,7 @@ pyttsx3
 edge-tts
 asyncio
 pyyaml
-numpy
+numpy==2.2.5
+librosa==0.11.0
+numba==0.61.2
 pydub
-librosa
