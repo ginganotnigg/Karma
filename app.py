@@ -115,14 +115,14 @@ def score():
 
     for submission in submissions:
         # Validate submission data
-        if "index" not in submission or "answer" not in submission or "recordProof" not in submission:
-            return jsonify({"error": f"Submission at index {submission.get('index', 'unknown')} is missing required fields"}), 400
+        if "index" not in submission:
+            return jsonify({"error": f"Submission data is missing index"}), 400
 
         try:
             # Process each submission
             index = submission["index"]
-            text = submission["answer"]
-            audio_base64 = submission["recordProof"]
+            text = submission.get("answer", "")
+            audio_base64 = submission.get("recordProof", "")
             
             # Decode audio data
             try:
