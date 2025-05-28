@@ -113,14 +113,10 @@ def score():
     results = []
     all_fluency_scores = []
 
-    for submission in submissions:
-        # Validate submission data
-        if "index" not in submission:
-            return jsonify({"error": f"Submission data is missing index"}), 400
-
+    for i, submission in enumerate(submissions):
         try:
             # Process each submission
-            index = submission["index"]
+            index = submission.get("index", i + 1)
             text = submission.get("answer", "")
             audio_base64 = submission.get("recordProof", "")
             
