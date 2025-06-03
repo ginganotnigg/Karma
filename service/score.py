@@ -5,7 +5,7 @@ import re
 from collections import Counter
 from pydub import AudioSegment
 import io
-import logging
+from service.shared import logger
 
 
 FILLER_WORDS_EN = set(["um", "uh", "er", "like", "you", "know", "i", "mean", "so", "actually"])
@@ -32,13 +32,6 @@ FILLER_WORD_RATIO_RANGE_VI = [0.0, 0.3]  # Similar to English
 PITCH_VARIATION_RANGE_VI = [80, 350]  # Higher variation due to tonal nature
 DIGITS_AFTER_DECIMAL = 2
 
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
 
 def round_score(num):
     return round(num, DIGITS_AFTER_DECIMAL)

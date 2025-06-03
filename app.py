@@ -1,19 +1,17 @@
 from flask import Flask, request, jsonify, send_from_directory, send_file
 from flask_cors import CORS
 import asyncio
-from service.edge_tts import edge_save_audio, edge_get_voice, generate_edge
+from service.edge_tts import edge_save_audio, edge_get_voice, generate_edge, set_tts_config
 from service.score import evaluate_fluency, get_fluency_feedback, calculate_overall_grade, generate_combined_feedback
-from service.lip_sync import audio_to_mouthshape_json
+from service.lip_sync import audio_to_mouthshape_json, set_lipsync_config
 import base64
 import logging
 import tempfile
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+
+def set_config(config):
+    set_tts_config(config)
+    set_lipsync_config(config)
 
 app = Flask(__name__)
 CORS(app)
@@ -52,19 +50,6 @@ def tts_api():
         audio_base64 = base64.b64encode(output_data).decode('utf-8')
         return jsonify({"audio": audio_base64})
     except Exception as e:
-        # logger.error(f"Edge TTS error: {str(e)}")
-        # logger.info("Falling back to py_tts")
-
-        # try:
-            # Fallback to py_tts
-            #     voice = py_get_voice(lang, gender)  # Get voice for py_tts
-            #     output_data = asyncio.run(py_save_audio(text, voice, speed))
-            #     if output_data is None:
-            #         return jsonify({"Error": "Failed to generate audio with py_tts."}), 500
-            #     audio_base64 = base64.b64encode(output_data).decode('utf-8')
-            #     return jsonify({"audio": audio_base64})
-            # except Exception as e:
-            #     logger.error(f"Py TTS error: {str(e)}")
         return jsonify({"Error": str(e)}), 500
    
 
@@ -119,6 +104,14 @@ def score():
             index = submission.get("index", i + 1)
             text = submission.get("answer", "")
             audio_base64 = submission.get("recordProof", "")
+
+            if text == "" or audio_base64 == "":
+                results.append({
+                    "index": index,
+                    "comment": "No answer or record proof",
+                    "score": "F"
+                })
+                continue
             
             # Decode audio data
             try:

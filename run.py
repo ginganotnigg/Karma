@@ -2,7 +2,7 @@
 import argparse
 import yaml
 from gunicorn.app.base import BaseApplication
-from app import app
+from app import app, set_config
 
 
 class FlaskApp(BaseApplication):
@@ -39,4 +39,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--config", default="config/config.yaml", help="Path to config YAML")
     args = parser.parse_args()
+    with open(args.config, 'r') as f:
+        config = yaml.safe_load(f)
+    set_config(config)
+    # Pass config to modules that need it
     FlaskApp(app, config_path=args.config).run()

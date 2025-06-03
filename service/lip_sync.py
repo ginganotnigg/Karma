@@ -6,26 +6,19 @@ import tempfile
 from service.edge_tts import edge_save_audio
 from pydub import AudioSegment
 import shutil
-import logging
-import yaml
+from service.shared import logger
 
-# Load configuration from config.yaml
-with open("config/config.yaml", 'r') as config_file:
-    config = yaml.safe_load(config_file)
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
-LIP_SYNC_TOOL_DIR = config['lip_sync']['tool_dir']
-SPEEDUP_FACTOR = config['lip_sync']['speedup_factor']
-TIMEOUT = config['lip_sync']['timeout']
-CLOSED_CUE_DURATION = config['lip_sync']['closed_cue_duration']
-TEMPLATE_PATH = config['path']['template']
-DIGITS_AFTER_DECIMAL = 2
+def set_lipsync_config(_config):
+    global config, LIP_SYNC_TOOL_DIR, SPEEDUP_FACTOR, TIMEOUT, CLOSED_CUE_DURATION, TEMPLATE_PATH, DIGITS_AFTER_DECIMAL
+    config = _config
+    LIP_SYNC_TOOL_DIR = config['lip_sync']['tool_dir']
+    SPEEDUP_FACTOR = config['lip_sync']['speedup_factor']
+    TIMEOUT = config['lip_sync']['timeout']
+    CLOSED_CUE_DURATION = config['lip_sync']['closed_cue_duration']
+    TEMPLATE_PATH = config['path']['template']
+    DIGITS_AFTER_DECIMAL = 2
+    
 
 
 def round_time(num):
@@ -46,8 +39,10 @@ def get_audio_duration(audio_path):
         logger.error(f"Error getting audio duration: {str(e)}")
         return -1
 
-def load_template_json(audio_duration, template_path=TEMPLATE_PATH):
+def load_template_json(audio_duration, template_path=None):
     """Loads and cuts the template JSON based on audio duration."""
+    if template_path is None:
+        template_path = TEMPLATE_PATH
     logger.info(f"Loading template JSON with audio duration: {audio_duration}")
     try:
         with open(template_path, 'r') as f:
@@ -205,7 +200,7 @@ def run_rhubarb_lip_sync_bytes(temp_wav_path, lang):
             logger.error(f"Rhubarb error output: {e.stderr.decode()}")
         return None
     except subprocess.TimeoutExpired:
-        logger.error(f"Rhubarb process timed out after {TIMEOUT} seconds")
+        logger.warning(f"Rhubarb process timed out after {TIMEOUT} seconds")
         logger.info(f"Falling back to template JSON")
         return None
     except json.JSONDecodeError as e:

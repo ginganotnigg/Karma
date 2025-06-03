@@ -39,9 +39,9 @@ tts:
       male: "com.apple.voice.compact.vi-VN.Linh"
       female: "com.apple.voice.compact.vi-VN.Linh"
 lip_sync:
-  timeout: 10
+  timeout: 3
   tool_dir: "Rhubarb"
-  speedup_factor: 2.0
+  speedup_factor: 3.0
   closed_cue_duration: 0.1
 path:
   template: "service/template.json"

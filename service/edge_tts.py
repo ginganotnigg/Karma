@@ -5,28 +5,20 @@ from typing import Optional
 import yaml
 import logging
 import os
+from service.shared import logger
 
-# Load configuration from config.yaml
-with open("config/config.yaml", 'r') as config_file:
-    config = yaml.safe_load(config_file)
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
-# Voice mappings using config.yaml
-ENGLISH_VOICES = {
-    "male": config['tts']['edge_tts']['english_voices'].get('male', []),
-    "female": config['tts']['edge_tts']['english_voices'].get('female', [])
-}
-
-VIETNAMESE_VOICES = {
-    "male": config['tts']['edge_tts']['vietnamese_voice'].get('male'),
-    "female": config['tts']['edge_tts']['vietnamese_voice'].get('female')
-}
+def set_tts_config(_config):
+    global config, ENGLISH_VOICES, VIETNAMESE_VOICES
+    config = _config
+    ENGLISH_VOICES = {
+        "male": config['tts']['edge_tts']['english_voices'].get('male', []),
+        "female": config['tts']['edge_tts']['english_voices'].get('female', [])
+    }
+    VIETNAMESE_VOICES = {
+        "male": config['tts']['edge_tts']['vietnamese_voice'].get('male'),
+        "female": config['tts']['edge_tts']['vietnamese_voice'].get('female')
+    }
 
 def edge_get_voice(lang: str, gender: str) -> Optional[str]:
     """
